@@ -19,7 +19,7 @@ let lastUpdate = 0;
 const COOLDOWN = 15 * 60 * 1000; // 15 minutes
 
 // =====================
-// DATE (TODAY)
+// DATE
 // =====================
 function getToday() {
   return new Date().toISOString().split('T')[0];
@@ -49,7 +49,7 @@ function buildEmbed(list) {
   const embed = new EmbedBuilder()
     .setTitle('🏆 Wager Leaderboard')
     .setColor(0xFFD700)
-    .setFooter({ text: 'Auto-updates every 15 minutes' })
+    .setFooter({ text: 'Updates every 15 minutes' })
     .setTimestamp();
 
   if (!list.length) {
@@ -81,13 +81,13 @@ function buildEmbed(list) {
 }
 
 // =====================
-// UPDATE LEADERBOARD
+// UPDATE FUNCTION
 // =====================
 async function updateLeaderboard() {
   try {
     const now = Date.now();
 
-    // 🔒 HARD RATE LIMIT PROTECTION
+    // HARD COOLDOWN (prevents 429 even if called twice)
     if (now - lastUpdate < COOLDOWN) {
       console.log("Skipped update (cooldown active)");
       return;
@@ -110,7 +110,7 @@ async function updateLeaderboard() {
 }
 
 // =====================
-// BOT READY
+// BOT READY (RENDER SAFE)
 // =====================
 client.once('ready', async () => {
   if (started) return;
@@ -125,16 +125,19 @@ client.once('ready', async () => {
     embeds: [
       new EmbedBuilder()
         .setTitle("🏆 Wager Leaderboard")
-        .setDescription("Loading leaderboard...")
+        .setDescription("Initializing leaderboard...")
         .setColor(0xFFD700)
     ]
   });
 
-  // Wait before first API call (prevents 429 on startup)
-  setTimeout(updateLeaderboard, 5000);
+  console.log("Bot ready — waiting 60s before first update (Render-safe)");
 
-  // Normal interval (15 min)
-  setInterval(updateLeaderboard, COOLDOWN);
+  // 🔒 Render startup safety delay (prevents 429 on boot)
+  setTimeout(() => {
+    updateLeaderboard();
+
+    setInterval(updateLeaderboard, COOLDOWN);
+  }, 60 * 1000);
 });
 
 // =====================
