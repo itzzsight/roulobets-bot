@@ -11,16 +11,23 @@ const API_URL = 'https://api.roulobets.com/v1/external/affiliates';
 
 let leaderboardMessage = null;
 
-// 🔒 Safety controls (prevents 429 + double runs)
+// =====================
+// SAFETY CONTROLS
+// =====================
 let started = false;
 let lastUpdate = 0;
+const COOLDOWN = 15 * 60 * 1000; // 15 minutes
 
-// Get today's date
+// =====================
+// DATE (TODAY)
+// =====================
 function getToday() {
   return new Date().toISOString().split('T')[0];
 }
 
-// Fetch API safely
+// =====================
+// FETCH API
+// =====================
 async function fetchLeaderboard() {
   const today = getToday();
 
@@ -35,12 +42,14 @@ async function fetchLeaderboard() {
   return res.data?.data || [];
 }
 
-// Build embed UI
+// =====================
+// BUILD EMBED
+// =====================
 function buildEmbed(list) {
   const embed = new EmbedBuilder()
     .setTitle('🏆 Wager Leaderboard')
     .setColor(0xFFD700)
-    .setFooter({ text: 'Updates every 15 minutes' })
+    .setFooter({ text: 'Auto-updates every 15 minutes' })
     .setTimestamp();
 
   if (!list.length) {
@@ -71,14 +80,16 @@ function buildEmbed(list) {
   return embed;
 }
 
-// 🔥 MAIN UPDATE FUNCTION (SAFE)
+// =====================
+// UPDATE LEADERBOARD
+// =====================
 async function updateLeaderboard() {
   try {
     const now = Date.now();
 
-    // 🚫 prevent spam calls (fixes 429)
-    if (now - lastUpdate < 14 * 60 * 1000) {
-      console.log("Skipped update (rate limit safety)");
+    // 🔒 HARD RATE LIMIT PROTECTION
+    if (now - lastUpdate < COOLDOWN) {
+      console.log("Skipped update (cooldown active)");
       return;
     }
 
@@ -98,7 +109,9 @@ async function updateLeaderboard() {
   }
 }
 
-// 🤖 BOT READY
+// =====================
+// BOT READY
+// =====================
 client.once('ready', async () => {
   if (started) return;
   started = true;
@@ -107,7 +120,7 @@ client.once('ready', async () => {
 
   const channel = await client.channels.fetch(process.env.LEADERBOARD_CHANNEL_ID);
 
-  // Send ONLY ONE message
+  // Send ONE message only
   leaderboardMessage = await channel.send({
     embeds: [
       new EmbedBuilder()
@@ -117,17 +130,25 @@ client.once('ready', async () => {
     ]
   });
 
-  // First update
-  await updateLeaderboard();
+  // Wait before first API call (prevents 429 on startup)
+  setTimeout(updateLeaderboard, 5000);
 
-  // 🔁 15-minute loop (API safe)
-  setInterval(updateLeaderboard, 15 * 60 * 1000);
+  // Normal interval (15 min)
+  setInterval(updateLeaderboard, COOLDOWN);
 });
 
-// 🚀 LOGIN
+// =====================
+// LOGIN
+// =====================
 client.login(process.env.DISCORD_TOKEN);
 
-// 🛡️ Crash protection
+// =====================
+// CRASH SAFETY
+// =====================
 process.on('unhandledRejection', err => {
   console.error('Unhandled Rejection:', err.message);
+});
+
+process.on('uncaughtException', err => {
+  console.error('Uncaught Exception:', err.message);
 });
