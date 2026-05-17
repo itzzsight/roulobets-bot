@@ -8,18 +8,15 @@ const client = new Client({
 });
 
 const API_URL = 'https://api.roulobets.com/v1/external/affiliates';
-const API_KEY = process.env.ROULOBETS_API_KEY;
-
-const CHANNEL_ID = process.env.LEADERBOARD_CHANNEL_ID;
 
 let leaderboardMessage = null;
 
-// Get today's date (YYYY-MM-DD)
+// Get today's date
 function getToday() {
   return new Date().toISOString().split('T')[0];
 }
 
-// Fetch API data
+// Fetch API
 async function fetchLeaderboard() {
   const today = getToday();
 
@@ -27,21 +24,19 @@ async function fetchLeaderboard() {
     params: {
       start_at: today,
       end_at: today,
-      key: API_KEY,
+      key: process.env.ROULOBETS_API_KEY,
     },
   });
 
-  return res.data;
+  return res.data?.data || res.data || [];
 }
 
 // Build embed
-function buildEmbed(data) {
+function buildEmbed(list) {
   const embed = new EmbedBuilder()
     .setTitle('🏆 Wager Leaderboard')
     .setColor(0x00ff99)
     .setTimestamp();
-
-  const list = data?.data || [];
 
   if (!list.length) {
     embed.setDescription("No data available.");
@@ -53,7 +48,12 @@ function buildEmbed(data) {
   let desc = '';
 
   sorted.slice(0, 10).forEach((u, i) => {
-    desc += `**#${i + 1}** ${u.username || 'Unknown'} — $${Number(u.wagered || 0).toLocaleString()}\n`;
+    const medal =
+      i === 0 ? "🥇" :
+      i === 1 ? "🥈" :
+      i === 2 ? "🥉" : `**${i + 1}.**`;
+
+    desc += `${medal} **${u.username || 'Unknown'}** — $${Number(u.wagered || 0).toLocaleString()}\n`;
   });
 
   embed.setDescription(desc);
@@ -64,26 +64,35 @@ function buildEmbed(data) {
 // Update leaderboard
 async function updateLeaderboard() {
   try {
-    const channel = await client.channels.fetch(CHANNEL_ID);
-
     const data = await fetchLeaderboard();
+
     const embed = buildEmbed(data);
 
-    if (!leaderboardMessage) {
-      leaderboardMessage = await channel.send({ embeds: [embed] });
-    } else {
+    if (leaderboardMessage) {
       await leaderboardMessage.edit({ embeds: [embed] });
     }
 
-    console.log('Leaderboard updated');
+    console.log("Leaderboard updated");
+
   } catch (err) {
-    console.error('Error updating leaderboard:', err.message);
+    console.error("Update error:", err.message);
   }
 }
 
-// Bot ready
+// Ready event
 client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}`);
+
+  const channel = await client.channels.fetch(process.env.LEADERBOARD_CHANNEL_ID);
+
+  leaderboardMessage = await channel.send({
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("🏆 Wager Leaderboard")
+        .setDescription("Loading data...")
+        .setColor(0x00ff99)
+    ]
+  });
 
   await updateLeaderboard();
 
