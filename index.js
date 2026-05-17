@@ -11,12 +11,16 @@ const API_URL = 'https://api.roulobets.com/v1/external/affiliates';
 
 let leaderboardMessage = null;
 
-// Get today's date (YYYY-MM-DD)
+// 🔒 Safety controls (prevents 429 + double runs)
+let started = false;
+let lastUpdate = 0;
+
+// Get today's date
 function getToday() {
   return new Date().toISOString().split('T')[0];
 }
 
-// Fetch API data
+// Fetch API safely
 async function fetchLeaderboard() {
   const today = getToday();
 
@@ -31,17 +35,16 @@ async function fetchLeaderboard() {
   return res.data?.data || [];
 }
 
-// Build CLEAN leaderboard embed
+// Build embed UI
 function buildEmbed(list) {
   const embed = new EmbedBuilder()
     .setTitle('🏆 Wager Leaderboard')
     .setColor(0xFFD700)
-    .setThumbnail('https://i.imgur.com/8Km9tLL.png') // optional icon
     .setFooter({ text: 'Updates every 15 minutes' })
     .setTimestamp();
 
   if (!list.length) {
-    embed.setDescription("No leaderboard data available yet.");
+    embed.setDescription("No data available.");
     return embed;
   }
 
@@ -60,7 +63,7 @@ function buildEmbed(list) {
       i === 1 ? "🥈" :
       i === 2 ? "🥉" : `**${i + 1}.**`;
 
-    desc += `${medal} **${name}** → 💰 **$${wager}**\n`;
+    desc += `${medal} **${name}** → 💰 $${wager}\n`;
   });
 
   embed.setDescription(desc);
@@ -68,9 +71,19 @@ function buildEmbed(list) {
   return embed;
 }
 
-// Update leaderboard (EDIT SAME MESSAGE)
+// 🔥 MAIN UPDATE FUNCTION (SAFE)
 async function updateLeaderboard() {
   try {
+    const now = Date.now();
+
+    // 🚫 prevent spam calls (fixes 429)
+    if (now - lastUpdate < 14 * 60 * 1000) {
+      console.log("Skipped update (rate limit safety)");
+      return;
+    }
+
+    lastUpdate = now;
+
     const data = await fetchLeaderboard();
     const embed = buildEmbed(data);
 
@@ -85,13 +98,16 @@ async function updateLeaderboard() {
   }
 }
 
-// Bot ready
+// 🤖 BOT READY
 client.once('ready', async () => {
+  if (started) return;
+  started = true;
+
   console.log(`Logged in as ${client.user.tag}`);
 
   const channel = await client.channels.fetch(process.env.LEADERBOARD_CHANNEL_ID);
 
-  // Send ONLY ONCE
+  // Send ONLY ONE message
   leaderboardMessage = await channel.send({
     embeds: [
       new EmbedBuilder()
@@ -101,12 +117,17 @@ client.once('ready', async () => {
     ]
   });
 
-  // First update immediately
+  // First update
   await updateLeaderboard();
 
-  // 🔥 15 minute updates (API safe)
+  // 🔁 15-minute loop (API safe)
   setInterval(updateLeaderboard, 15 * 60 * 1000);
 });
 
-// Login
+// 🚀 LOGIN
 client.login(process.env.DISCORD_TOKEN);
+
+// 🛡️ Crash protection
+process.on('unhandledRejection', err => {
+  console.error('Unhandled Rejection:', err.message);
+});
