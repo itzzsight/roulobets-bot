@@ -96,7 +96,7 @@ client.once('ready', async () => {
 
   await updateLeaderboard();
 
-  setInterval(updateLeaderboard, 15 * 60 * 1000);
+  setInterval(updateLeaderboard, 60 * 1000);
 });
 
 // Login
